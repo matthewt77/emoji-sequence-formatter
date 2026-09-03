@@ -1,0 +1,18 @@
+[project]
+name = "emojiseq"
+version = "0.1.0"
+description = "Normalise messy emoji sequences in text"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "matthewt77" }]
+
+[project.scripts]
+emojiseq = "emojiseq.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

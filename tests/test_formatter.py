@@ -3,7 +3,7 @@
 import io
 import unittest
 
-from emojiseq.formatter import clean_joiners_and_selectors, format_stream, format_text
+from emojiseq.formatter import Stats, clean_joiners_and_selectors, format_stream, format_text
 
 ZWJ = "‍"
 VS15 = "︎"
@@ -53,6 +53,31 @@ class FormatStream(unittest.TestCase):
         dst = io.StringIO()
         format_stream(src, dst, chunk_size=1)  # force a read per character
         self.assertEqual(dst.getvalue(), family)
+
+    def test_returns_stats_for_untouched_input(self):
+        src = io.StringIO(FIRE)
+        dst = io.StringIO()
+        stats = format_stream(src, dst)
+        self.assertEqual(stats, Stats())
+
+    def test_counts_dropped_and_collapsed_joiners(self):
+        src = io.StringIO(ZWJ + FIRE + ZWJ * 3 + FIRE)
+        dst = io.StringIO()
+        stats = format_stream(src, dst)
+        self.assertEqual(dst.getvalue(), FIRE + ZWJ + FIRE)
+        self.assertEqual(stats.joiners_dropped, 1)
+        self.assertEqual(stats.joiners_collapsed, 2)
+
+    def test_counts_composed_clusters(self):
+        src = io.StringIO("cafe" + "́")
+        dst = io.StringIO()
+        stats = format_stream(src, dst)
+        self.assertEqual(dst.getvalue(), "café")
+        self.assertEqual(stats.composed, 1)
+
+    def test_total_changes_sums_all_counters(self):
+        stats = Stats(composed=1, joiners_dropped=2, selectors_collapsed=3)
+        self.assertEqual(stats.total_changes, 6)
 
 
 if __name__ == "__main__":

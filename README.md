@@ -57,6 +57,17 @@ emojiseq messy.txt -o clean.txt
 cat messy.txt | emojiseq > clean.txt
 ```
 
+Add `--stats` to get a summary on stderr of what was changed and how often
+(composed clusters, dropped/collapsed joiners, dropped/collapsed selectors),
+without disturbing the normalised text on stdout:
+
+```sh
+emojiseq messy.txt -o clean.txt --stats
+```
+
+`format_stream` returns the same summary as a `Stats` object, for callers
+using the library directly.
+
 ## Installing
 
 Standard library only, nothing to install for the code itself. To get the
@@ -69,9 +80,11 @@ pip install -e .
 ## Status
 
 Early skeleton. The joiner/selector cleanup handles the common cases
-(dangling and repeated joiners, orphan and repeated selectors) but
-doesn't yet validate whole sequences -- see the roadmap in commit
-history for what's next.
+(dangling and repeated joiners, orphan and repeated selectors) and
+`--stats` reports what it changed, but it doesn't yet validate whole
+sequences against the Unicode emoji data files (ZWJ sequences, valid
+modifier-base + skin-tone pairs, regional-indicator flags) -- see the
+roadmap in commit history for what's next.
 
 ## License
 

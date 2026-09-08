@@ -58,6 +58,20 @@ class MainStdStreams(unittest.TestCase):
             with open(out_path, encoding="utf-8") as f:
                 self.assertEqual(f.read(), FIRE)
 
+    def test_stats_flag_reports_to_stderr_not_stdout(self):
+        real_stdin = sys.stdin
+        sys.stdin = io.StringIO(FIRE + ZWJ * 3 + FIRE)
+        try:
+            captured_out = io.StringIO()
+            captured_err = io.StringIO()
+            with contextlib.redirect_stdout(captured_out), contextlib.redirect_stderr(captured_err):
+                main(["--stats"])
+        finally:
+            sys.stdin = real_stdin
+
+        self.assertEqual(captured_out.getvalue(), FIRE + ZWJ + FIRE)
+        self.assertIn("joiners collapsed:   2", captured_err.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

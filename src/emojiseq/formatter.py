@@ -14,6 +14,7 @@ make that possible:
 """
 
 import unicodedata
+from dataclasses import dataclass
 
 ZERO_WIDTH_JOINER = "‍"
 VARIATION_SELECTOR_15 = "︎"  # text presentation
@@ -23,6 +24,32 @@ VARIATION_SELECTORS = (VARIATION_SELECTOR_15, VARIATION_SELECTOR_16)
 # Large enough that most inputs are read in one or two chunks, small enough
 # that a genuinely huge file never lands in memory all at once.
 _DEFAULT_CHUNK_SIZE = 65536
+
+
+@dataclass
+class Stats:
+    """Counts of what a pass actually changed.
+
+    Every field is a count of clusters or code points affected, not a
+    count of input characters, so these stay meaningful regardless of
+    how large the input was.
+    """
+
+    composed: int = 0
+    joiners_dropped: int = 0
+    joiners_collapsed: int = 0
+    selectors_dropped: int = 0
+    selectors_collapsed: int = 0
+
+    @property
+    def total_changes(self):
+        return (
+            self.composed
+            + self.joiners_dropped
+            + self.joiners_collapsed
+            + self.selectors_dropped
+            + self.selectors_collapsed
+        )
 
 
 def _iter_chars(readable, chunk_size=_DEFAULT_CHUNK_SIZE):
@@ -54,13 +81,16 @@ def _iter_clusters(chars):
         yield "".join(cluster)
 
 
-def _iter_normalised_chars(chars):
+def _iter_normalised_chars(chars, stats):
     for cluster in _iter_clusters(chars):
-        for ch in unicodedata.normalize("NFC", cluster):
+        normalised = unicodedata.normalize("NFC", cluster)
+        if normalised != cluster:
+            stats.composed += 1
+        for ch in normalised:
             yield ch
 
 
-def clean_joiners_and_selectors(chars):
+def clean_joiners_and_selectors(chars, stats=None):
     """Drop zero-width joiners and variation selectors with nothing valid
     to attach to, and collapse runs of either into a single character.
 
@@ -69,6 +99,9 @@ def clean_joiners_and_selectors(chars):
     with visible tofu boxes or stray blank glyphs, so this is the one
     cleanup that matters most.
     """
+    if stats is None:
+        stats = Stats()
+
     held = None
     prev_emitted = None
 
@@ -76,9 +109,11 @@ def clean_joiners_and_selectors(chars):
         if held is not None:
             if held == ZERO_WIDTH_JOINER:
                 if ch == ZERO_WIDTH_JOINER:
+                    stats.joiners_collapsed += 1
                     continue  # another joiner in a row: keep collapsing
                 if ch.isspace():
                     held = None  # dangling joiner right before whitespace: drop it
+                    stats.joiners_dropped += 1
                 else:
                     yield held
                     prev_emitted = held
@@ -86,6 +121,7 @@ def clean_joiners_and_selectors(chars):
             else:
                 if ch in VARIATION_SELECTORS:
                     held = ch  # a run of selectors: keep only the last one
+                    stats.selectors_collapsed += 1
                     continue
                 yield held
                 prev_emitted = held
@@ -93,15 +129,23 @@ def clean_joiners_and_selectors(chars):
 
         if ch == ZERO_WIDTH_JOINER or ch in VARIATION_SELECTORS:
             if prev_emitted is None or prev_emitted.isspace():
-                continue  # nothing before it to attach to: drop it
+                # nothing before it to attach to: drop it
+                if ch == ZERO_WIDTH_JOINER:
+                    stats.joiners_dropped += 1
+                else:
+                    stats.selectors_dropped += 1
+                continue
             held = ch
             continue
 
         yield ch
         prev_emitted = ch
 
-    if held is not None and held != ZERO_WIDTH_JOINER:
-        yield held  # a trailing variation selector is fine; a trailing joiner is not
+    if held is not None:
+        if held == ZERO_WIDTH_JOINER:
+            stats.joiners_dropped += 1  # a trailing joiner is dropped
+        else:
+            yield held  # a trailing variation selector is fine
 
 
 def format_stream(infile, outfile, chunk_size=_DEFAULT_CHUNK_SIZE):
@@ -110,11 +154,15 @@ def format_stream(infile, outfile, chunk_size=_DEFAULT_CHUNK_SIZE):
     Both are plain text-mode file-like objects. The whole pipeline is
     generators end to end, so memory use stays roughly constant no matter
     how large the input is.
+
+    Returns a Stats object counting what was changed and how often.
     """
+    stats = Stats()
     chars = _iter_chars(infile, chunk_size)
-    normalised = _iter_normalised_chars(chars)
-    for ch in clean_joiners_and_selectors(normalised):
+    normalised = _iter_normalised_chars(chars, stats)
+    for ch in clean_joiners_and_selectors(normalised, stats):
         outfile.write(ch)
+    return stats
 
 
 def format_text(text):

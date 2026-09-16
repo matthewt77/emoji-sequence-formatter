@@ -1,0 +1,3 @@
+status,note
+️done,shipped 🔥‍
+blocked,waiting on 👍‍‍ review

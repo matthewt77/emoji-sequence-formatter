@@ -35,6 +35,65 @@ class MainFileArgs(unittest.TestCase):
                 main([missing])
 
 
+class MainInPlace(unittest.TestCase):
+    def test_in_place_edit_does_not_truncate_before_reading(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "messy.txt")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(ZWJ + FIRE + ZWJ * 3 + FIRE)
+
+            main([path, "-o", path])
+
+            with open(path, encoding="utf-8") as f:
+                self.assertEqual(f.read(), FIRE + ZWJ + FIRE)
+
+    def test_in_place_edit_detected_across_path_spellings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "messy.txt")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(ZWJ + FIRE)
+
+            other_spelling = os.path.join(tmp, ".", "messy.txt")
+            main([path, "-o", other_spelling])
+
+            with open(path, encoding="utf-8") as f:
+                self.assertEqual(f.read(), FIRE)
+
+    def test_in_place_edit_leaves_no_stray_temp_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "messy.txt")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(ZWJ + FIRE)
+
+            main([path, "-o", path])
+
+            self.assertEqual(os.listdir(tmp), ["messy.txt"])
+
+    def test_in_place_edit_preserves_original_if_formatting_fails(self):
+        import emojiseq.cli as cli_module
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "messy.txt")
+            original = ZWJ + FIRE
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(original)
+
+            def boom(infile, outfile, chunk_size=None):
+                raise RuntimeError("simulated failure")
+
+            real_format_stream = cli_module.format_stream
+            cli_module.format_stream = boom
+            try:
+                with self.assertRaises(RuntimeError):
+                    main([path, "-o", path])
+            finally:
+                cli_module.format_stream = real_format_stream
+
+            with open(path, encoding="utf-8") as f:
+                self.assertEqual(f.read(), original)
+            self.assertEqual(os.listdir(tmp), ["messy.txt"])
+
+
 class MainStdStreams(unittest.TestCase):
     def run_main_with_stdin(self, argv, stdin_text):
         real_stdin = sys.stdin

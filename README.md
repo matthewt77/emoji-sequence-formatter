@@ -57,6 +57,11 @@ emojiseq messy.txt -o clean.txt
 cat messy.txt | emojiseq > clean.txt
 ```
 
+`-o` can point at the same path as the input, to clean a file in place;
+the write goes to a temp file in the same directory first and is only
+swapped in once formatting finishes, so a failure partway through leaves
+the original untouched.
+
 Add `--stats` to get a summary on stderr of what was changed and how often
 (composed clusters, dropped/collapsed joiners, dropped/collapsed selectors),
 without disturbing the normalised text on stdout:

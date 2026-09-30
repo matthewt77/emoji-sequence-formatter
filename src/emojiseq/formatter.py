@@ -16,6 +16,8 @@ make that possible:
 import unicodedata
 from dataclasses import dataclass
 
+from .emojidata import is_modifier_base, is_skin_tone_modifier
+
 ZERO_WIDTH_JOINER = "‍"
 VARIATION_SELECTOR_15 = "︎"  # text presentation
 VARIATION_SELECTOR_16 = "️"  # emoji presentation
@@ -40,11 +42,13 @@ class Stats:
     joiners_collapsed: int = 0
     selectors_dropped: int = 0
     selectors_collapsed: int = 0
+    modifiers_dropped: int = 0
 
     @property
     def total_changes(self):
         return (
-            self.composed
+            self.modifiers_dropped
+            + self.composed
             + self.joiners_dropped
             + self.joiners_collapsed
             + self.selectors_dropped
@@ -148,6 +152,27 @@ def clean_joiners_and_selectors(chars, stats=None):
             yield held  # a trailing variation selector is fine
 
 
+def drop_orphan_modifiers(chars, stats=None):
+    """Drop skin-tone modifiers that don't directly follow a modifier base.
+
+    A modifier after anything else (plain text, a selector, another
+    modifier) renders as a bare colour swatch. Only the previous character
+    matters, so this holds no buffer at all. It runs after the joiner and
+    selector pass so that pass has already settled what precedes each
+    modifier.
+    """
+    if stats is None:
+        stats = Stats()
+
+    prev = None
+    for ch in chars:
+        if is_skin_tone_modifier(ch) and (prev is None or not is_modifier_base(prev)):
+            stats.modifiers_dropped += 1
+            continue
+        yield ch
+        prev = ch
+
+
 def format_stream(infile, outfile, chunk_size=_DEFAULT_CHUNK_SIZE):
     """Read text from `infile`, write the normalised version to `outfile`.
 
@@ -160,7 +185,8 @@ def format_stream(infile, outfile, chunk_size=_DEFAULT_CHUNK_SIZE):
     stats = Stats()
     chars = _iter_chars(infile, chunk_size)
     normalised = _iter_normalised_chars(chars, stats)
-    for ch in clean_joiners_and_selectors(normalised, stats):
+    cleaned = clean_joiners_and_selectors(normalised, stats)
+    for ch in drop_orphan_modifiers(cleaned, stats):
         outfile.write(ch)
     return stats
 

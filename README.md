@@ -20,6 +20,8 @@ a stray blank glyph or a visible tofu box.
 - drops a zero-width joiner that has nothing valid before or after it
 - collapses runs of variation selectors into the last one in the run
 - drops a variation selector that has nothing valid before it
+- drops a skin-tone modifier that doesn't directly follow an emoji that
+  takes one (per the Emoji_Modifier_Base property)
 
 It does this as a stream. Composing accented characters correctly only
 requires looking at a base character plus the combining marks stuck to
@@ -63,7 +65,8 @@ swapped in once formatting finishes, so a failure partway through leaves
 the original untouched.
 
 Add `--stats` to get a summary on stderr of what was changed and how often
-(composed clusters, dropped/collapsed joiners, dropped/collapsed selectors),
+(composed clusters, dropped/collapsed joiners, dropped/collapsed selectors,
+dropped modifiers),
 without disturbing the normalised text on stdout:
 
 ```sh
@@ -86,10 +89,10 @@ pip install -e .
 
 Early skeleton. The joiner/selector cleanup handles the common cases
 (dangling and repeated joiners, orphan and repeated selectors) and
-`--stats` reports what it changed, but it doesn't yet validate whole
-sequences against the Unicode emoji data files (ZWJ sequences, valid
-modifier-base + skin-tone pairs, regional-indicator flags) -- see the
-roadmap in commit history for what's next.
+`--stats` reports what it changed, and skin-tone modifiers are checked
+against the modifier-base table. It doesn't yet validate whole sequences
+against the Unicode emoji data files (ZWJ sequences, regional-indicator
+flags, subdivision tag flags).
 
 ## License
 

@@ -3,8 +3,18 @@
 import io
 import unittest
 
-from emojiseq.formatter import Stats, clean_joiners_and_selectors, format_stream, format_text
+from emojiseq.emojidata import is_modifier_base
+from emojiseq.formatter import (
+    Stats,
+    clean_joiners_and_selectors,
+    drop_orphan_modifiers,
+    format_stream,
+    format_text,
+)
 
+THUMBS_UP = "\U0001f44d"
+WOMAN = "\U0001f469"
+MEDIUM_TONE = "\U0001f3fd"
 ZWJ = "‍"
 VS15 = "︎"
 VS16 = "️"
@@ -33,6 +43,39 @@ class CleanJoinersAndSelectors(unittest.TestCase):
 
     def test_drops_orphan_leading_selector(self):
         self.assertEqual(self.run_clean(VS16 + FIRE), FIRE)
+
+
+class DropOrphanModifiers(unittest.TestCase):
+    def run_drop(self, text):
+        return "".join(drop_orphan_modifiers(text))
+
+    def test_keeps_modifier_after_base(self):
+        self.assertEqual(self.run_drop(THUMBS_UP + MEDIUM_TONE), THUMBS_UP + MEDIUM_TONE)
+
+    def test_drops_modifier_after_non_base_emoji(self):
+        self.assertEqual(self.run_drop(FIRE + MEDIUM_TONE), FIRE)
+
+    def test_drops_leading_modifier(self):
+        self.assertEqual(self.run_drop(MEDIUM_TONE + THUMBS_UP), THUMBS_UP)
+
+    def test_drops_modifier_after_text(self):
+        self.assertEqual(self.run_drop("a" + MEDIUM_TONE), "a")
+
+    def test_drops_second_modifier_in_a_row(self):
+        self.assertEqual(
+            self.run_drop(THUMBS_UP + MEDIUM_TONE + MEDIUM_TONE), THUMBS_UP + MEDIUM_TONE
+        )
+
+    def test_keeps_modifier_inside_zwj_sequence(self):
+        seq = WOMAN + MEDIUM_TONE + ZWJ + WOMAN + MEDIUM_TONE
+        self.assertEqual(self.run_drop(seq), seq)
+
+    def test_base_table_edges(self):
+        self.assertTrue(is_modifier_base("☝"))
+        self.assertTrue(is_modifier_base("\U0001faf8"))
+        self.assertFalse(is_modifier_base("☜"))
+        self.assertFalse(is_modifier_base("\U0001f46a"))  # family: no skin tones
+        self.assertFalse(is_modifier_base("\U0001faf9"))
 
 
 class FormatText(unittest.TestCase):

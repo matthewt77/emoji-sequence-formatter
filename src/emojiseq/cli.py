@@ -22,6 +22,7 @@ def _print_stats(stats, file):
     print(f"  joiners collapsed:   {stats.joiners_collapsed}", file=file)
     print(f"  selectors dropped:   {stats.selectors_dropped}", file=file)
     print(f"  selectors collapsed: {stats.selectors_collapsed}", file=file)
+    print(f"  modifiers dropped:   {stats.modifiers_dropped}", file=file)
 
 
 def _same_path(a, b):
